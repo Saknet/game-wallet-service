@@ -13,6 +13,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d wallet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  wallet-service:
+    build: .
+    container_name: wallet-app
+    ports:
+      - "8443:8443"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/wallet
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      # Point to the copied keystore location in the container
+      SERVER_SSL_KEY_STORE: file:/app/keystore.p12
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
