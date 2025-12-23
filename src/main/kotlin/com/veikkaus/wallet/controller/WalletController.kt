@@ -58,6 +58,17 @@ class WalletController(private val walletService: WalletService) {
 class GlobalExceptionHandler {
 
     /**
+     * Handles validation errors (e.g. invalid JSON, missing fields, negative amounts).
+     * This is required for @Valid to return 400 instead of 500.
+     */
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException::class)
+    fun handleValidationErrors(e: org.springframework.web.bind.MethodArgumentNotValidException): ResponseEntity<Map<String, Any>> {
+        val errors = e.bindingResult.fieldErrors.map { "${it.field}: ${it.defaultMessage}" }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(mapOf("error" to "BAD_REQUEST", "message" to errors))
+    }
+
+    /**
     * Handles cases where a player does not have sufficient funds.
     *
     * HTTP 402 (Payment Required) is intentionally used to represent a

@@ -1,16 +1,18 @@
-# Compiled class file
+# --- Build Artifacts (Crucial) ---
+/build/
+/.gradle/
+bin/
+
+# --- Compiled Source ---
 *.class
 
-# Log file
+# --- Logs & Databases ---
 *.log
+# H2 Database files (if any were created locally)
+*.mv.db
+*.trace.db
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# --- Packages & Archives ---
 *.jar
 *.war
 *.nar
@@ -19,12 +21,30 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# !IMPORTANT: We MUST un-ignore the Gradle Wrapper JAR so others can build the project
+!gradle/wrapper/gradle-wrapper.jar
+
+# --- IDE Config (Keep project clean) ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+
+# --- OS Junk ---
+.DS_Store
+Thumbs.db
+
+# --- Secrets (Safety First) ---
+*.p12
+*.pem
+*.key
+
+# --- Kotlin specific ---
+.kotlin/
+.mtj.tmp/
 hs_err_pid*
 replay_pid*
-
-# Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
-.kotlin/
-
-.DS_Store
-*.p12
