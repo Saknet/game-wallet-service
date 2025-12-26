@@ -177,10 +177,12 @@ class WalletService(
 
 /**
  * Exception thrown when a debit cannot be completed due to insufficient funds.
+ * Note: 'message' is nullable (String?) to allow testing default error handling.
  */
-class InsufficientFundsException(message: String) : RuntimeException(message)
+class InsufficientFundsException(message: String? = null) : RuntimeException(message)
 
 /**
- * Exception thrown when a transaction ID already exists but parameters differ from the request.
+ * Exception thrown when a transaction ID already exists but parameters differ.
+ * Note: 'message' is nullable (String?) to allow testing default error handling.
  */
-class TransactionConflictException(message: String) : RuntimeException(message)
+class TransactionConflictException(message: String? = null) : RuntimeException(message)
