@@ -22,7 +22,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.Collections
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class WalletIntegrationTest {
@@ -39,19 +39,26 @@ class WalletIntegrationTest {
         @JvmStatic
         @DynamicPropertySource
         fun registerPgProperties(registry: DynamicPropertyRegistry) {
+            // 1. Force Spring to use the Testcontainer's dynamic URL
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
             registry.add("spring.datasource.password", postgres::getPassword)
+
+            // 2. IMPORTANT: Disable standard SQL init scripts to prevent conflicts
+            registry.add("spring.sql.init.mode") { "never" }
+            
+            // 3. Let Hibernate create the schema based on our Entities
+            registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
         }
     }
 
     @Autowired lateinit var walletService: WalletService
     @Autowired lateinit var playerRepository: PlayerRepository
-    @Autowired lateinit var transactionRepository: TransactionRepository // Inject this
+    @Autowired lateinit var transactionRepository: TransactionRepository
 
     @BeforeEach
     fun setup() {
-        // FIX: Delete transactions FIRST to avoid Foreign Key constraint violations
+        // Clean up DB to ensure a fresh state for every test
         transactionRepository.deleteAll()
         playerRepository.deleteAll()
     }
@@ -124,9 +131,8 @@ class WalletIntegrationTest {
         walletService.debit(req1)
 
         // 2. Reuse ID but change amount (Should fail)
-        val req2 = TransactionRequest(txnId, playerId, BigDecimal("500.00")) // Different amount
+        val req2 = TransactionRequest(txnId, playerId, BigDecimal("500.00")) 
         
-        // This expects the service to throw TransactionConflictException
         assertThrows(com.veikkaus.wallet.service.TransactionConflictException::class.java) {
             walletService.debit(req2)
         }
