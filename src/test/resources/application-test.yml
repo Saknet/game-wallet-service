@@ -1,4 +1,7 @@
 spring:
+  sql:
+    init:
+      mode: never # Stops running production SQL scripts in tests.
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_UPPER=false
     driverClassName: org.h2.Driver
@@ -7,6 +10,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
   flyway:
-    enabled: false  # Disable migrations in H2 test
+    enabled: false
+server:
+  ssl:
+    enabled: false
