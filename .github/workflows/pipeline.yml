@@ -1,0 +1,37 @@
+name: Wallet Service CI
+
+on:
+  push:
+    branches: [ "main", "ci/*" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'corretto'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    # Create dummy keystore so build doesn't fail
+    - name: Generate Dummy Keystore
+      run: |
+        keytool -genkeypair -alias wallet -keyalg RSA -keysize 2048 \
+          -storetype PKCS12 -keystore src/main/resources/keystore.p12 \
+          -validity 1 -storepass changeit -dname "CN=localhost"
+
+    - name: Run Tests
+      run: ./gradlew test --info --no-daemon
+
+    - name: Build JAR
+      run: ./gradlew bootJar --no-daemon
