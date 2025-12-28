@@ -5,10 +5,17 @@ import com.veikkaus.wallet.dto.TransactionRequest
 import com.veikkaus.wallet.service.InsufficientFundsException
 import com.veikkaus.wallet.service.TransactionConflictException
 import com.veikkaus.wallet.service.WalletService
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.util.NoSuchElementException
 
 /**
  * REST controller responsible for handling wallet-related HTTP endpoints.
@@ -19,6 +26,7 @@ import org.springframework.web.bind.annotation.*
  */
 @RestController
 @RequestMapping("/api/v1/wallet")
+@Tag(name = "Wallet Operations", description = "Endpoints for managing player funds")
 class WalletController(private val walletService: WalletService) {
 
     /**
@@ -30,6 +38,15 @@ class WalletController(private val walletService: WalletService) {
      * @param request Transaction details (playerId, transactionId, amount).
      * @return [BalanceResponse] with transactionId, playerId, and updated balance.
      */
+    @Operation(summary = "Debit (Purchase)", description = "Deducts funds from a player's wallet. Idempotent based on transactionId.")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Transaction successful",
+            content = [Content(schema = Schema(implementation = BalanceResponse::class))]),
+        ApiResponse(responseCode = "400", description = "Invalid request (e.g. negative amount)", content = [Content()]),
+        ApiResponse(responseCode = "402", description = "Insufficient funds", content = [Content()]),
+        ApiResponse(responseCode = "404", description = "Player not found", content = [Content()]),
+        ApiResponse(responseCode = "409", description = "Idempotency conflict (Transaction ID reused with different params)", content = [Content()])
+    ])
     @PostMapping("/debit")
     fun debit(@Valid @RequestBody request: TransactionRequest): ResponseEntity<BalanceResponse> =
         ResponseEntity.ok(walletService.debit(request))
@@ -43,6 +60,14 @@ class WalletController(private val walletService: WalletService) {
      * @param request Transaction details (playerId, transactionId, amount).
      * @return [BalanceResponse] with transactionId, playerId, and updated balance.
      */
+    @Operation(summary = "Credit (Win)", description = "Adds funds to a player's wallet. Idempotent based on transactionId.")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Transaction successful",
+            content = [Content(schema = Schema(implementation = BalanceResponse::class))]),
+        ApiResponse(responseCode = "400", description = "Invalid request", content = [Content()]),
+        ApiResponse(responseCode = "404", description = "Player not found", content = [Content()]),
+        ApiResponse(responseCode = "409", description = "Idempotency conflict", content = [Content()])
+    ])
     @PostMapping("/credit")
     fun credit(@Valid @RequestBody request: TransactionRequest): ResponseEntity<BalanceResponse> =
         ResponseEntity.ok(walletService.credit(request))
@@ -90,7 +115,7 @@ class GlobalExceptionHandler {
      * Handles transaction idempotency conflicts.
      *
      * @param e [TransactionConflictException] thrown when transactionId exists
-     *          with different parameters.
+     * with different parameters.
      * @return HTTP 409 Conflict with error details.
      */
     @ExceptionHandler(TransactionConflictException::class)
