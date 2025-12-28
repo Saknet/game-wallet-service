@@ -4,6 +4,7 @@ plugins {
     kotlin("jvm") version "1.9.20"
     kotlin("plugin.spring") version "1.9.20"
     kotlin("plugin.jpa") version "1.9.20"
+    id("org.jetbrains.dokka") version "1.9.10"
     id("jacoco")
 }
 
@@ -23,6 +24,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
     
     // Database
     runtimeOnly("org.postgresql:postgresql")
@@ -48,6 +50,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 tasks.withType<Test> {
     useJUnitPlatform()
     finalizedBy(tasks.jacocoTestReport) // Report is generated after tests run
+}
+
+tasks.dokkaHtml {
+    outputDirectory.set(buildDir.resolve("dokka"))
 }
 
 tasks.jacocoTestReport {

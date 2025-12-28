@@ -5,16 +5,17 @@ services:
     image: postgres:15-alpine
     container_name: wallet-db
     environment:
-      POSTGRES_DB: wallet
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d wallet"]
+      # Note: We must use the variable here too so the check succeeds
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,10 +26,15 @@ services:
     ports:
       - "8443:8443"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/wallet
-      SPRING_DATASOURCE_USERNAME: user
-      SPRING_DATASOURCE_PASSWORD: password
-      # Point to the copied keystore location in the container
+      # Pass the profile (dev/prod)
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+      
+      # Inject the variables from .env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      # SSL Configuration
       SERVER_SSL_KEY_STORE: file:/app/keystore.p12
     depends_on:
       postgres:
