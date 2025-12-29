@@ -5,7 +5,7 @@ import com.veikkaus.wallet.dto.TransactionRequest
 import com.veikkaus.wallet.model.TransactionType
 import com.veikkaus.wallet.model.WalletTransaction
 import com.veikkaus.wallet.repository.PlayerRepository
-import com.veikkaus.wallet.repository.TransactionRepository
+import com.veikkaus.wallet.repository.WalletTransactionRepository
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
@@ -13,25 +13,17 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 
 /**
- * Service responsible for the transactional management of player funds.
+ * Service responsible for managing player wallet state.
  *
- * This service implements the core business logic for the wallet system, ensuring
- * strictly consistent balance updates through database locking.
- *
- * ## Key Features
- * - **Concurrency Control:** Uses **Pessimistic Locking** (`SELECT ... FOR UPDATE`) to prevent race conditions.
- * See `docs/adr/001-concurrency-strategy.md` for architectural context.
- * - **Idempotency:** Guarantees that retrying the same [TransactionRequest.transactionId] yields the same result
- * without side effects.
- * - **Audit Trail:** All balance changes are recorded in the immutable [WalletTransaction] log.
- *
- * @property playerRepository Data access for mutable player state.
- * @property transactionRepository Data access for the immutable audit ledger.
+ * This service handles:
+ * - **Concurrency Control:** Uses database-level pessimistic locking to prevent race conditions (double-spending).
+ * - **Idempotency:** Ensures that retrying the same transaction ID yields the same result without side effects.
+ * - **Audit Logging:** Persists an immutable record of every transaction.
  */
 @Service
 class WalletService(
     private val playerRepository: PlayerRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: WalletTransactionRepository
 ) {
 
     private val logger = LoggerFactory.getLogger(WalletService::class.java)
@@ -39,8 +31,7 @@ class WalletService(
     /**
      * Processes a Debit (Purchase) transaction.
      *
-     * Validates sufficient funds before deducting the amount. This operation is atomic
-     * and safe under high concurrency.
+     * Checks if the player has sufficient funds before deducting the amount.
      *
      * @param request The transaction details (ID, player, amount).
      * @return [BalanceResponse] containing the updated balance.
@@ -54,22 +45,23 @@ class WalletService(
             request.transactionId, request.playerId, request.amount)
 
         // Pass a lambda to calculate the new balance (Current - Amount)
-        // Includes a specific domain check for insufficient funds.
+        // Includes a specific check for insufficient funds.
         return processTransaction(request, TransactionType.DEBIT) { currentBalance, amount ->
+            // Kotlin allows using '<' operator for BigDecimal
             if (currentBalance < amount) {
                 logger.warn("Insufficient funds for player {} (Balance: {}, Req: {})",
                     request.playerId, currentBalance, amount)
                 throw InsufficientFundsException("Player ${request.playerId} has insufficient funds")
             }
+            // Kotlin allows using '-' operator for BigDecimal
             currentBalance - amount
         }
     }
 
     /**
-     * Processes a Credit (Win/Deposit) transaction.
+     * Processes a Credit (Win) transaction.
      *
-     * Adds the specified amount to the player's balance. This operation is atomic
-     * and safe under high concurrency.
+     * Adds the specified amount to the player's balance.
      *
      * @param request The transaction details (ID, player, amount).
      * @return [BalanceResponse] containing the updated balance.
@@ -83,6 +75,7 @@ class WalletService(
 
         // Pass a lambda to calculate the new balance (Current + Amount)
         return processTransaction(request, TransactionType.CREDIT) { currentBalance, amount ->
+            // Kotlin allows using '+' operator for BigDecimal
             currentBalance + amount
         }
     }
@@ -90,16 +83,12 @@ class WalletService(
     /**
      * Unified transaction processor to handle locking, idempotency, and audit logging.
      *
-     * This helper method ensures that the core transactional logic satisfies the **DRY principle**:
-     * 1. **Idempotency Check:** Returns early if the transaction exists.
-     * 2. **Locking:** Acquires a PESSIMISTIC_WRITE lock on the Player.
-     * 3. **Calculation:** Applies the debit/credit strategy.
-     * 4. **Persistence:** Saves the new player state.
-     * 5. **Auditing:** Inserts the immutable transaction record.
+     * This helper method ensures that the core transactional logic (Lock -> Update -> Log)
+     * is consistent across both Debits and Credits, satisfying the DRY principle.
      *
      * @param request The incoming API request.
      * @param type The type of transaction (DEBIT or CREDIT).
-     * @param balanceCalculator A lambda function defining how to modify the balance.
+     * @param balanceCalculator A lambda function that defines how to calculate the new balance.
      * @return The response with the final state.
      */
     private fun processTransaction(
@@ -109,9 +98,15 @@ class WalletService(
     ): BalanceResponse {
 
         // 1. Idempotency Check
+        // If this transaction ID has already been processed, we must return the
+        // original result immediately to handle network retries gracefully.
+        // Use findByIdOrNull (Kotlin extension for Spring Data)
         val existingTxn = transactionRepository.findByIdOrNull(request.transactionId)
+        
         if (existingTxn != null) {
             logger.info("Idempotent replay detected for txnId={}", request.transactionId)
+
+            // Verify that the retry parameters match the original transaction
             validateIdempotency(existingTxn, request, type)
 
             return BalanceResponse(
@@ -122,8 +117,8 @@ class WalletService(
         }
 
         // 2. Lock & Load Player
-        // We use PESSIMISTIC_WRITE lock via the repository to serialize access.
-        // This is the critical section for concurrency control.
+        // We use PESSIMISTIC_WRITE lock (SELECT ... FOR UPDATE) to ensure that
+        // no other thread can modify this player's balance until this transaction finishes.
         val player = playerRepository.findByIdLocked(request.playerId)
             ?: run {
                 logger.error("Player {} not found during transaction", request.playerId)
@@ -131,6 +126,7 @@ class WalletService(
             }
 
         // 3. Calculate New Balance
+        // Execute the strategy provided by the caller (add or subtract)
         val newBalance = balanceCalculator(player.balance, request.amount)
 
         // 4. Update State
@@ -138,6 +134,7 @@ class WalletService(
         playerRepository.save(player)
 
         // 5. Audit Log
+        // Record the immutable transaction history.
         val txn = WalletTransaction(
             transactionId = request.transactionId,
             playerId = player.id,
@@ -155,13 +152,13 @@ class WalletService(
     /**
      * Validates that an existing transaction matches the current request parameters.
      *
-     * This safeguards against clients reusing a Transaction ID for a *different* operation,
-     * which indicates a logic error in the client rather than a network retry.
+     * If a client retries a transaction ID but changes the amount or player ID,
+     * this is considered a conflict/error, not a valid replay.
      *
      * @param existing The previously saved transaction.
      * @param request The current incoming request.
      * @param expectedType The expected operation type (DEBIT/CREDIT).
-     * @throws TransactionConflictException If parameters (amount, player, or type) do not match.
+     * @throws TransactionConflictException If parameters do not match.
      */
     private fun validateIdempotency(
         existing: WalletTransaction,
@@ -180,10 +177,12 @@ class WalletService(
 
 /**
  * Exception thrown when a debit cannot be completed due to insufficient funds.
+ * Note: 'message' is nullable (String?) to allow testing default error handling.
  */
 class InsufficientFundsException(message: String? = null) : RuntimeException(message)
 
 /**
  * Exception thrown when a transaction ID already exists but parameters differ.
+ * Note: 'message' is nullable (String?) to allow testing default error handling.
  */
 class TransactionConflictException(message: String? = null) : RuntimeException(message)

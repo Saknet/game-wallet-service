@@ -20,7 +20,7 @@ import java.util.UUID
 class RepositoryTest {
 
     @Autowired lateinit var playerRepository: PlayerRepository
-    @Autowired lateinit var transactionRepository: TransactionRepository
+    @Autowired lateinit var transactionRepository: WalletTransactionRepository
 
     @Test
     fun `findByIdLocked should return player using custom query`() {
