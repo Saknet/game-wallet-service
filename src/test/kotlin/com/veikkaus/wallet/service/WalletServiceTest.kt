@@ -5,7 +5,7 @@ import com.veikkaus.wallet.model.Player
 import com.veikkaus.wallet.model.TransactionType
 import com.veikkaus.wallet.model.WalletTransaction
 import com.veikkaus.wallet.repository.PlayerRepository
-import com.veikkaus.wallet.repository.TransactionRepository
+import com.veikkaus.wallet.repository.WalletTransactionRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -28,7 +28,7 @@ class WalletServiceTest {
     lateinit var playerRepository: PlayerRepository
 
     @Mock
-    lateinit var transactionRepository: TransactionRepository
+    lateinit var transactionRepository: WalletTransactionRepository
 
     @InjectMocks
     lateinit var walletService: WalletService

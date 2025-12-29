@@ -10,28 +10,24 @@ import org.springframework.stereotype.Repository
 import java.util.UUID
 
 /**
- * Repository for accessing and managing [Player] state.
+ * Repository for accessing Player entities.
  *
- * This repository is the critical point for **concurrency control**. By providing
- * locking mechanisms, it ensures that only one transaction can modify a player's
- * balance at a time.
+ * Responsibilities:
+ * - Managing player persistence.
+ * - Handling concurrency control via pessimistic locking.
  */
 @Repository
 interface PlayerRepository : JpaRepository<Player, UUID> {
 
     /**
-     * Finds a player by ID and strictly acquires a **Pessimistic Write Lock** on the row.
+     * Finds a player by ID and applies a **pessimistic write lock**.
      *
-     * ## SQL Behavior
-     * Executes `SELECT ... FOR UPDATE` (PostgreSQL).
+     * This uses `SELECT ... FOR UPDATE` at the database level. It ensures that
+     * if multiple threads/instances try to modify the same player's balance
+     * simultaneously, they are serialized (queued), preventing race conditions.
      *
-     * ## Blocking Behavior
-     * If another transaction currently holds the lock for this [id], this method
-     * will **block** (wait) until the lock is released. This serializes access
-     * to the player's balance, preventing race conditions and double-spending.
-     *
-     * @param id The UUID of the player.
-     * @return The [Player] entity if found, otherwise null.
+     * @param id UUID of the player to retrieve.
+     * @return The Player entity if found, or null.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Player p WHERE p.id = :id")
@@ -39,13 +35,12 @@ interface PlayerRepository : JpaRepository<Player, UUID> {
 }
 
 /**
- * Repository for accessing [WalletTransaction] audit records.
+ * Repository for accessing WalletTransaction entities.
  *
- * ## Responsibilities
- * 1. **Audit Log:** Persisting immutable records of every debit/credit.
- * 2. **Idempotency:** The inherited [existsById] method is used to check if a
- * transaction ID has already been processed.
- * 3. **History:** Retrieving past transactions for display.
+ * Responsibilities:
+ * - Persisting immutable transaction records (Audit Log).
+ * - Retrieving transaction history for players.
+ * - Providing primary key lookups for idempotency checks.
  */
 @Repository
 interface WalletTransactionRepository : JpaRepository<WalletTransaction, UUID> {
@@ -53,11 +48,12 @@ interface WalletTransactionRepository : JpaRepository<WalletTransaction, UUID> {
     /**
      * Retrieves the transaction history for a specific player.
      *
-     * **Ordering:** Results are ordered by [WalletTransaction.createdAt] descending
-     * (newest transactions first), which is the standard requirement for UI history feeds.
+     * Results are ordered by `createdAt` descending (newest first), which is
+     * standard for displaying transaction history (e.g., "Last 10 transactions").
      *
      * @param playerId The UUID of the player.
-     * @return A list of transactions, or an empty list if none exist.
+     * @return List of transactions found for the player.
      */
     fun findAllByPlayerIdOrderByCreatedAtDesc(playerId: UUID): List<WalletTransaction>
+
 }

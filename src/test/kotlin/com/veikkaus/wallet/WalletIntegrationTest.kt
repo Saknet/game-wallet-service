@@ -3,7 +3,7 @@ package com.veikkaus.wallet
 import com.veikkaus.wallet.dto.TransactionRequest
 import com.veikkaus.wallet.model.Player
 import com.veikkaus.wallet.repository.PlayerRepository
-import com.veikkaus.wallet.repository.TransactionRepository
+import com.veikkaus.wallet.repository.WalletTransactionRepository
 import com.veikkaus.wallet.service.WalletService
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -54,7 +54,7 @@ class WalletIntegrationTest {
 
     @Autowired lateinit var walletService: WalletService
     @Autowired lateinit var playerRepository: PlayerRepository
-    @Autowired lateinit var transactionRepository: TransactionRepository
+    @Autowired lateinit var transactionRepository: WalletTransactionRepository
 
     @BeforeEach
     fun setup() {

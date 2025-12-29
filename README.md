@@ -19,7 +19,8 @@ A high-performance, concurrent, and idempotent wallet service designed for seaml
 
 ## 🏗 Architecture & Design
 
-The service is designed as a stateless, horizontally scalable tier that relies on the database for state consistency.
+The application layer is stateless; all transactional state and consistency
+are delegated to the database.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fff0f0', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#f4f4f4'}}}%%
@@ -102,7 +103,7 @@ This architecture ensures that while the application tier can scale to handle th
     ```
 
 2.  **Idempotency:**
-    The API is fully idempotent. The client-provided `transactionId` is mapped directly to the database Primary Key.
+    The API is fully idempotent. The client-provided transactionId is enforced as a unique business key to guarantee idempotent behavior across retries.
     * **Scenario:** If a Game Engine sends a request, times out, and retries with the same ID, the service detects the existing record and returns the *original* result without re-processing the money movement.
 
 3.  **Auditability:**
@@ -158,6 +159,7 @@ Deducts funds from the player's wallet. Returns `402 Payment Required` if funds 
 ```json
 {
   "transactionId": "123e4567-e89b-12d3-a456-426614174000",
+  "playerId": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "balance": 89.50
 }
 ```
@@ -179,6 +181,7 @@ Adds funds to the player's wallet.
 
 {
   "transactionId": "987fcdeb-51a2-43d1-a456-426614174000",
+  "playerId": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "balance": 139.50
 }
 ```
@@ -186,7 +189,7 @@ Adds funds to the player's wallet.
 ## 🎮 Integration Guide for Game Engines
 
 ### Authentication
-The API requires Mutual TLS (mTLS) or simple HTTPS. Ensure your game server trusts the self-signed certificate located in `src/main/resources/keystore.p12` during development.
+The service runs over HTTPS. Mutual TLS (mTLS) can be added if required, but is not enforced in the current implementation. Ensure your game server trusts the self-signed certificate located in `src/main/resources/keystore.p12` during development.
 
 ### Handling Idempotency
 The Game Engine **must** generate a unique UUID for every logical transaction (e.g., "Purchase Item X").
@@ -227,7 +230,8 @@ docker run --name wallet-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=wallet 
 ---
 
 ## 🧪 How to Run (Tests)
-This project maintains **100% Test Coverage** across Unit and Integration tests.
+This project includes comprehensive unit and integration tests covering
+core business logic, concurrency behavior, and idempotency guarantees.
 
 ### Running the Suite
 Integration tests use **Testcontainers** to spin up a real PostgreSQL instance on a random port. Docker must be running.
@@ -260,6 +264,28 @@ To generate the site locally:
 * [concurrency-strategy.md](docs/adr/concurrency-strategy.md) - Analysis of locking strategies and the decision to use Pessimistic Locking.
 * [api-design.md](docs/api-design.md) - Detailed breakdown of REST endpoints and error handling standards.
 * [database-design.md](docs/database-design.md) - Schema definitions and SQL constraints.
+
+## ⚠️ Known Limitations
+
+This service intentionally prioritizes **correctness, consistency, and auditability**
+over maximum per-player throughput. The following limitations are acknowledged
+and documented by design:
+
+- **Single-row locking per player**  
+  All balance updates acquire a pessimistic lock on the player row.  
+  This guarantees correctness but limits concurrent transactions *per individual player*.
+
+- **No optimistic locking fallback**  
+  The system does not attempt optimistic retries or version-based conflict resolution.
+  All concurrency control is handled via database-level pessimistic locking.
+
+- **No refunds or transaction reversals**  
+  The current model supports forward-only balance changes (debit / credit).
+  Reversals, compensating transactions, and dispute handling are out of scope.
+
+These trade-offs were made to keep the core wallet logic simple, predictable,
+and safe under concurrent load. Future iterations may address these areas
+depending on product requirements.
 
 ## ⚙️ CI/CD
 A GitHub Actions pipeline is configured in `.github/workflows/pipeline.yml`. Every push to `main` or feature branches triggers:
