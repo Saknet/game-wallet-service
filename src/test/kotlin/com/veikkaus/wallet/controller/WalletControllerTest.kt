@@ -7,34 +7,44 @@ import com.veikkaus.wallet.service.InsufficientFundsException
 import com.veikkaus.wallet.service.TransactionConflictException
 import com.veikkaus.wallet.service.WalletService
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
-import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.math.BigDecimal
-import java.util.UUID
 import java.util.NoSuchElementException
+import java.util.UUID
 
-@WebMvcTest(WalletController::class)
-@Import(GlobalExceptionHandler::class)
+@org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest(WalletController::class)
+@Import(GlobalExceptionHandler::class, WalletControllerTest.TestConfig::class)
 class WalletControllerTest {
 
+    @TestConfiguration
+    class TestConfig {
+        @Bean
+        fun objectMapper(): ObjectMapper = ObjectMapper()
+    }
+
     @Autowired lateinit var mockMvc: MockMvc
-    @MockBean lateinit var walletService: WalletService
+
+    @MockitoBean
+    lateinit var walletService: WalletService
+
     @Autowired lateinit var mapper: ObjectMapper
 
     @Test
     fun `debit should return 200 OK`() {
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         val res = BalanceResponse(req.transactionId, req.playerId, BigDecimal("90.00"))
-        `when`(walletService.debit(any())).thenReturn(res)
+        whenever(walletService.debit(any())).thenReturn(res)
 
         mockMvc.perform(post("/api/v1/wallet/debit")
             .contentType(MediaType.APPLICATION_JSON)
@@ -47,7 +57,7 @@ class WalletControllerTest {
     fun `credit should return 200 OK`() {
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         val res = BalanceResponse(req.transactionId, req.playerId, BigDecimal("110.00"))
-        `when`(walletService.credit(any())).thenReturn(res)
+        whenever(walletService.credit(any())).thenReturn(res)
 
         mockMvc.perform(post("/api/v1/wallet/credit")
             .contentType(MediaType.APPLICATION_JSON)
@@ -75,7 +85,7 @@ class WalletControllerTest {
 
     @Test
     fun `should return 402 Payment Required`() {
-        `when`(walletService.debit(any())).thenThrow(InsufficientFundsException("Funds low"))
+        whenever(walletService.debit(any())).thenThrow(InsufficientFundsException("Funds low"))
         
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/debit")
@@ -87,7 +97,7 @@ class WalletControllerTest {
 
     @Test
     fun `should return 404 Not Found`() {
-        `when`(walletService.debit(any())).thenThrow(NoSuchElementException("Player missing"))
+        whenever(walletService.debit(any())).thenThrow(NoSuchElementException("Player missing"))
         
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/debit")
@@ -99,7 +109,7 @@ class WalletControllerTest {
 
     @Test
     fun `should return 409 Conflict`() {
-        `when`(walletService.credit(any())).thenThrow(TransactionConflictException("Mismatch"))
+        whenever(walletService.credit(any())).thenThrow(TransactionConflictException("Mismatch"))
 
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/credit")
@@ -111,7 +121,7 @@ class WalletControllerTest {
 
     @Test
     fun `should return 500 Internal Error`() {
-        `when`(walletService.debit(any())).thenThrow(RuntimeException("Boom"))
+        whenever(walletService.debit(any())).thenThrow(RuntimeException("Boom"))
 
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/debit")
@@ -123,7 +133,7 @@ class WalletControllerTest {
 
     @Test
     fun `should return 500 with default message when exception message is null`() {
-        `when`(walletService.debit(any())).thenThrow(RuntimeException())
+        whenever(walletService.debit(any())).thenThrow(RuntimeException())
 
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/debit")
@@ -135,7 +145,7 @@ class WalletControllerTest {
 
     @Test
     fun `should handle InsufficientFundsException with null message`() {
-        `when`(walletService.debit(any())).thenThrow(InsufficientFundsException(null))
+        whenever(walletService.debit(any())).thenThrow(InsufficientFundsException(null))
 
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/debit")
@@ -147,7 +157,7 @@ class WalletControllerTest {
 
     @Test
     fun `should handle TransactionConflictException with null message`() {
-        `when`(walletService.credit(any())).thenThrow(TransactionConflictException(null))
+        whenever(walletService.credit(any())).thenThrow(TransactionConflictException(null))
 
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/credit")
@@ -159,8 +169,8 @@ class WalletControllerTest {
 
     @Test
     fun `should handle NoSuchElementException with null message`() {
-        // FIX: Use no-arg constructor to guarantee null message without ambiguity
-        `when`(walletService.debit(any())).thenThrow(NoSuchElementException())
+        // Use no-arg constructor to guarantee null message without ambiguity
+        whenever(walletService.debit(any())).thenThrow(NoSuchElementException())
 
         val req = TransactionRequest(UUID.randomUUID(), UUID.randomUUID(), BigDecimal("10.00"))
         mockMvc.perform(post("/api/v1/wallet/debit")

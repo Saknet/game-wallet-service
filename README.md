@@ -3,7 +3,7 @@
 ![Tech](https://img.shields.io/badge/kotlin-spring%20boot-blue)
 ![Docs](https://img.shields.io/badge/docs-OpenAPI%20%2F%20Swagger-orange)
 
-A high-performance, concurrent, and idempotent wallet service designed for seamless integration with game engines. Built with **Kotlin**, **Spring Boot 3**, and **PostgreSQL**.
+A high-performance, concurrent, and idempotent wallet service designed for seamless integration with game engines. Built with **Kotlin**, **Spring Boot 4**, and **PostgreSQL**.
 
 ## 📋 Table of Contents
 - [Architecture & Design](#-architecture--design)
@@ -114,8 +114,8 @@ This architecture ensures that while the application tier can scale to handle th
 This application uses SSL (HTTPS). For security reasons, the keystore is **not** committed to the repository.
 
 ### Prerequisites
-* **Java 17** (JDK)
-* **Docker** (Required for Database and Integration Tests)
+* **Java 25** (JDK)
+* **Docker** (Required for running Postgres via containers and for Testcontainers integration tests)
 
 ### 1. Generate Development Certificate
 Before running the application (locally or via Docker), you **must** generate a self-signed certificate:
@@ -150,7 +150,7 @@ Deducts funds from the player's wallet. Returns `402 Payment Required` if funds 
 * **Body:**
 ```json
 {
-  "transactionId": "123e4567-e89b-12d3-a456-426614174000",
+  "transactionId": "123e4567-e89b-12d3-a456-426614254000",
   "playerId": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "amount": 10.50
 }
@@ -158,7 +158,7 @@ Deducts funds from the player's wallet. Returns `402 Payment Required` if funds 
 * **Response (200 OK):**
 ```json
 {
-  "transactionId": "123e4567-e89b-12d3-a456-426614174000",
+  "transactionId": "123e4567-e89b-12d3-a456-426614254000",
   "playerId": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "balance": 89.50
 }
@@ -171,7 +171,7 @@ Adds funds to the player's wallet.
 * **Body:**
 ```json
 {
-  "transactionId": "987fcdeb-51a2-43d1-a456-426614174000",
+  "transactionId": "987fcdeb-51a2-43d1-a456-426614254000",
   "playerId": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "amount": 50.00
 }
@@ -180,7 +180,7 @@ Adds funds to the player's wallet.
 ```json
 
 {
-  "transactionId": "987fcdeb-51a2-43d1-a456-426614174000",
+  "transactionId": "987fcdeb-51a2-43d1-a456-426614254000",
   "playerId": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "balance": 139.50
 }
@@ -220,10 +220,18 @@ If you want to run the JAR file directly:
 
 1.  **Start a Postgres database:**
 ```bash
-docker run --name wallet-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=wallet -p 5432:5432 -d postgres:15
+docker run --name wallet-db \
+  -e POSTGRES_USER=wallet_user \
+  -e POSTGRES_PASSWORD=ChangeThisToSomethingStrong! \
+  -e POSTGRES_DB=wallet \
+  -p 5432:5432 \
+  -d postgres:15
 ```
 2.  **Run the application:**
 ```bash
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
+export SPRING_DATASOURCE_USERNAME=wallet_user
+export SPRING_DATASOURCE_PASSWORD=ChangeThisToSomethingStrong!
 ./gradlew bootRun
 ```
 
@@ -289,6 +297,6 @@ depending on product requirements.
 
 ## ⚙️ CI/CD
 A GitHub Actions pipeline is configured in `.github/workflows/pipeline.yml`. Every push to `main` or feature branches triggers:
-1.  Setup of Java 17 environment.
+1.  Setup of Java 25 environment.
 2.  Execution of the full Gradle test suite.
 3.  Verification of build stability.

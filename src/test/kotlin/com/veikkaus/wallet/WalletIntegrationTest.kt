@@ -9,26 +9,30 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
+import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
-import java.util.Collections
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = Replace.NONE)
 class WalletIntegrationTest {
 
     companion object {
         @Container
+        @JvmField
         val postgres = PostgreSQLContainer<Nothing>("postgres:15")
             .apply {
                 withDatabaseName("wallet_test")
@@ -39,16 +43,19 @@ class WalletIntegrationTest {
         @JvmStatic
         @DynamicPropertySource
         fun registerPgProperties(registry: DynamicPropertyRegistry) {
-            // 1. Force Spring to use the Testcontainer's dynamic URL
+            // Use Testcontainer postgres
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
             registry.add("spring.datasource.password", postgres::getPassword)
 
-            // 2. IMPORTANT: Disable standard SQL init scripts to prevent conflicts
+            // Override test profile's H2 driver/dialect
+            registry.add("spring.datasource.driver-class-name") { "org.postgresql.Driver" }
+            registry.add("spring.jpa.properties.hibernate.dialect") { "org.hibernate.dialect.PostgreSQLDialect" }
+
             registry.add("spring.sql.init.mode") { "never" }
-            
-            // 3. Let Hibernate create the schema based on our Entities
             registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
+            registry.add("spring.flyway.enabled") { "false" } // safe if flyway exists
+            registry.add("server.ssl.enabled") { "false" }    // avoid keystore requirement
         }
     }
 

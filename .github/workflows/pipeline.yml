@@ -2,7 +2,7 @@ name: Wallet Service CI
 
 on:
   push:
-    branches: [ "main", "ci/*" ]
+    branches: [ "main", "ci/*", "chore/*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -13,11 +13,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up JDK 25
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
-        distribution: 'corretto'
+        java-version: '25'
+        distribution: 'temurin'
         cache: gradle
 
     - name: Grant execute permission for gradlew
