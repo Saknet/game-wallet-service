@@ -2,7 +2,7 @@ name: Wallet Service CI
 
 on:
   push:
-    branches: [ "main", "ci/*" ]
+    branches: [ "main", "ci/*", "chore/*" ]
   pull_request:
     branches: [ "main" ]
 

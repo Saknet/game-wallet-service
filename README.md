@@ -229,8 +229,9 @@ docker run --name wallet-db \
 ```
 2.  **Run the application:**
 ```bash
-export DB_USERNAME=wallet_user
-export DB_PASSWORD=ChangeThisToSomethingStrong!
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/wallet
+export SPRING_DATASOURCE_USERNAME=wallet_user
+export SPRING_DATASOURCE_PASSWORD=ChangeThisToSomethingStrong!
 ./gradlew bootRun
 ```
 
