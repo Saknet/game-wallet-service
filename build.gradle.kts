@@ -1,10 +1,12 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
 plugins {
-    id("org.springframework.boot") version "3.2.0"
-    id("io.spring.dependency-management") version "1.1.4"
-    kotlin("jvm") version "1.9.20"
-    kotlin("plugin.spring") version "1.9.20"
-    kotlin("plugin.jpa") version "1.9.20"
-    id("org.jetbrains.dokka") version "1.9.10"
+    id("org.springframework.boot") version "4.0.1"
+    kotlin("jvm") version "2.3.0"
+    kotlin("plugin.spring") version "2.3.0"
+    kotlin("plugin.jpa") version "2.3.0"
+    id("org.jetbrains.dokka") version "2.1.0"
     id("jacoco")
 }
 
@@ -12,7 +14,9 @@ group = "com.veikkaus.wallet"
 version = "0.0.1-SNAPSHOT"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
 }
 
 repositories {
@@ -20,40 +24,49 @@ repositories {
 }
 
 dependencies {
+    implementation(enforcedPlatform(SpringBootPlugin.BOM_COORDINATES))
+    testImplementation(enforcedPlatform(SpringBootPlugin.BOM_COORDINATES))
+
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0")
-    
-    // Database
-    runtimeOnly("org.postgresql:postgresql")
 
-    // Database (Testing) - REQUIRED for @DataJpaTest
+    implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0")
+
+    runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("com.h2database:h2")
 
-    // Testing
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.4"))
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.7")
-    testImplementation("org.testcontainers:postgresql:1.19.7")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:6.1.0")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-jdbc-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+
+    testRuntimeOnly("org.postgresql:postgresql")
 }
 
-// FIX: Using the fully qualified name here prevents "Unresolved reference" errors
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs += "-Xjsr305=strict"
-        jvmTarget = "17"
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_25)
+        freeCompilerArgs.add("-Xjsr305=strict")
     }
 }
 
-tasks.withType<Test> {
+tasks.test {
     useJUnitPlatform()
-    finalizedBy(tasks.jacocoTestReport) // Report is generated after tests run
+    finalizedBy(tasks.jacocoTestReport)
 }
 
-tasks.dokkaHtml {
-    outputDirectory.set(buildDir.resolve("dokka"))
+dokka {
+    dokkaPublications.html {
+        outputDirectory.set(layout.buildDirectory.dir("dokka"))
+    }
 }
 
 tasks.jacocoTestReport {
